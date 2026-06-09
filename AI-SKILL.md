@@ -115,7 +115,27 @@ Ask:
 2. For each component:
    - What does it display?
    - What is its role? (`widget` = main card, `ancillary` = secondary panel, `banner` = top strip, `coda` = bottom strip)
-   - What is a reasonable default card size? (columns × rows in the dashboard grid)
+   - What is the default card size? (columns × rows in the dashboard grid)
+
+**⛔ Default size gateway — mandatory before proceeding.**
+
+For every component (including Settings and About if included), you must obtain an
+explicit `cols` × `rows` confirmation from the developer before writing any code.
+Do not assume or carry forward a vague description — record exact integers.
+
+After the developer answers, repeat the table back to confirm:
+
+> _"Before I build, confirming the default sizes:_
+> | Component | cols | rows |
+> |-----------|------|------|
+> | {name}    | {n}  | {n}  |
+> | Settings  | {n}  | {n}  |
+> | About     | {n}  | {n}  |
+> _Is that correct?"_
+
+These exact values go directly into the widget manifest (`defaultSize` in each
+component entry of `GET /widget/wcp`) and **must not change** between design and
+implementation. The pre-release audit verifies the live manifest matches these values.
 
 ### Phase C — Data and Behaviour
 
@@ -322,13 +342,41 @@ Based on Phase D decisions:
 
 ### Step 5 — Implement HTML templates
 
-Every HTML template must include all five WCP theme reception elements
-(see WIDGET-BUILD-SPEC.md Section H):
-1. `wcp:ready` postMessage
-2. `wcp:request-theme` postMessage
-3. `#wcp-theme=` hash reading
-4. `wcp:context` + `wcp:theme` message listener
-5. Theme variable application (`setProperty` loop)
+Every HTML template must include all five WCP theme reception elements.
+**Do not reference an external document for these — implement exactly as shown below.**
+Copy this block verbatim into every `<script>` section, immediately after the
+`wcp:request-theme` postMessage line:
+
+```javascript
+// 1. WCP ready + theme request
+window.parent.postMessage({ type: 'wcp:ready' }, '*');
+window.parent.postMessage({ type: 'wcp:request-theme' }, '*');
+
+// 2. #wcp-theme= hash reading (WCP 2.x standard — base64 encoded)
+if (window.location.hash.startsWith('#wcp-theme=')) {
+  try {
+    const _fvars = JSON.parse(atob(window.location.hash.slice(11)));
+    for (const [k, v] of Object.entries(_fvars)) document.documentElement.style.setProperty(k, v);
+  } catch {}
+}
+
+// 3. postMessage theme listener
+window.addEventListener('message', e => {
+  if ((e.data?.type === 'wcp:theme' || e.data?.type === 'wcp:context') && e.data.theme)
+    Object.entries(e.data.theme).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
+});
+```
+
+**Critical — `#wcp-theme=` uses base64 (`atob`), NOT URL-encoding (`decodeURIComponent`).**
+The dashboard encodes the theme as `btoa(JSON.stringify(themeVars))`. Any template that
+uses `decodeURIComponent` or the old `wcp:theme=` (colon) hash format is non-compliant.
+
+All five elements must be present in every template:
+1. `wcp:ready` postMessage ✓ (in block above)
+2. `wcp:request-theme` postMessage ✓ (in block above)
+3. `#wcp-theme=` hash reading — `atob` base64 decode ✓ (in block above)
+4. `wcp:context` + `wcp:theme` message listener ✓ (in block above)
+5. Theme variable application — `setProperty` loop ✓ (in block above)
 
 ### Step 6 — Build and verify
 
@@ -366,6 +414,22 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/widget/index
 ```
 
 All mandatory endpoints must return 200 (or 204 for OPTIONS) before proceeding.
+
+**Verify `defaultSize` matches the Phase B confirmed values:**
+
+```bash
+curl -s http://localhost:$PORT/widget/wcp | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+for c in d['components']:
+    print(c['name'], '->', c['defaultSize'])
+"
+```
+
+Compare the output against the table confirmed with the developer in Phase B.
+If any `cols` or `rows` value differs from what was confirmed, fix the manifest
+before proceeding. The developer cannot add the widget with the correct size
+unless the manifest carries the right values.
 
 **Always tell the developer the port and manifest URL at this point.** The developer
 cannot add the widget to an orchestration without knowing these. After the container
