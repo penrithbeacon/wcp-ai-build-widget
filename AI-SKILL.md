@@ -50,6 +50,21 @@ options if no preference, proceed with the default on deferral.
 
 ## 3. Skill: Design the Widget
 
+### Arriving with context
+
+You may arrive here having already gathered information from the developer in
+wcp-ai-build — specifically their full description of what they want to build. If so:
+
+- Treat that description as pre-answered design context
+- Work through the phases below, but **skip any question that is already clearly answered**
+  by the description you were given
+- Where the description is partial (e.g. mentions components but not data sources), ask
+  only for what is missing
+- Do not ask the developer to repeat themselves — acknowledge what you already know and
+  confirm your interpretation, then ask only for the gaps
+
+### Design phases
+
 Work through these phases in order. The developer may answer in abstract terms (features,
 use cases, intended outcome) or technical terms — both are fine. Abstract answers are
 translated into technical decisions as the phases progress.
