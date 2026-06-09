@@ -423,9 +423,25 @@ In your WCP host studio:
 > not published publicly at this stage. When the developer is satisfied, they graduate
 > it to beta — which is where the release pipeline first runs.
 
-When the developer is ready to graduate to beta, optionally run a **dry-run release**
-first (validates the full release process without pushing anything publicly), then
-proceed to the full beta release.
+### Dry run during orchestration building — offer this proactively
+
+Building the first orchestration in the WCP host studio takes a few minutes. This is
+a natural opportunity for the AI to run a **dry-run beta release in parallel** — it
+validates the full release pipeline (all WCP spec endpoints, documentation generation,
+audit gate) without publishing anything publicly.
+
+**At the point where you hand the developer over to the studio, say:**
+
+> _"While you're building the orchestration, I can run a dry-run release right now in
+> parallel. It validates all WCP spec requirements, generates the documentation, and
+> reports exactly what a live release would do — without pushing anything to Docker Hub
+> or GitHub. This often catches endpoint path issues or spec gaps early, while you have
+> something productive to do in the studio. Want me to run the dry run now?"_
+
+If the developer agrees, read
+[wcp-ai-release AI-SKILL.md](https://github.com/penrithbeacon/wcp-ai-release/blob/main/AI-SKILL.md)
+with stage = **beta** and mode = **dry run**. Report the full dry-run result when the
+developer returns from the studio. Fix any issues found before proceeding to a live release.
 
 ### Hand off
 
