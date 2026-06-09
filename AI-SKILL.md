@@ -367,6 +367,15 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/widget/index
 
 All mandatory endpoints must return 200 (or 204 for OPTIONS) before proceeding.
 
+**Always tell the developer the port and manifest URL at this point.** The developer
+cannot add the widget to an orchestration without knowing these. After the container
+starts and all endpoints pass, say:
+
+> _"The widget is running. To add it to an orchestration in your WCP host studio:_
+> _- Port: **{port}**_
+> _- Manifest URL: **http://localhost:{port}/widget/wcp**_
+> _Paste the manifest URL into the Add Widget dialog."_
+
 ---
 
 ## 5. Skill: Generate the Specification
