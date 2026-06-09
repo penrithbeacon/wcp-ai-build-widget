@@ -299,6 +299,39 @@ If the installer is not yet available at widget build time, the endpoint should 
 `503 Service Unavailable` with a body pointing to the agent's GitHub Releases page,
 rather than a `404` — this signals "not yet available" rather than "does not exist".
 
+### Step 2b — Instance ID: read from both header AND query parameter
+
+**⛔ Mandatory — without this, multi-instance configuration is completely broken.**
+
+The WCP host passes the instance ID in two different ways:
+- **API calls** (fetch from within the iframe): `Wcp-Instance-Id` header
+- **Page loads** (iframe src URL): `?wcpInstanceId=` query parameter
+
+Browsers cannot add custom headers to iframe src loads. The host appends `?wcpInstanceId=<uuid>` to the widget URL. Your server-side template renderer will receive this as a query param, not a header.
+
+Your `instance_id_from_request()` function (or equivalent) **must check both**:
+
+```python
+def instance_id_from_request():
+    return (request.headers.get('Wcp-Instance-Id')
+            or request.args.get('wcpInstanceId', 'default'))
+```
+
+If you only read the header, every page render uses `'default'` as the instance ID,
+configuration is never found, and per-instance state (root folder, settings, etc.)
+never loads.
+
+**Also:** when rendering a template, always substitute sensible defaults for unconfigured
+values — do not pass empty strings that the frontend then has to re-check:
+
+```python
+# Wrong — empty root makes JS think "not configured", sidebar hides:
+root=cfg.get('root', '')
+
+# Correct — default to your working directory so the widget works immediately:
+root=cfg.get('root', '') or WORKSPACE
+```
+
 ### Step 3 — Implement all mandatory WCP endpoints
 
 Every widget must implement all of these. Refer to WIDGET-BUILD-SPEC.md for the exact
@@ -365,49 +398,115 @@ Based on Phase D decisions:
 
 Every HTML template must include all five WCP theme reception elements.
 **Do not reference an external document for these — implement exactly as shown below.**
-Copy this block verbatim into every `<script>` section, immediately after the
-`wcp:request-theme` postMessage line:
+
+### Theme reception — correct implementation
+
+The Penrith Beacon dashboard broadcasts theme vars with `--wcp-color-*` names
+(e.g. `--wcp-color-bg`, `--wcp-color-surface`, `--wcp-color-primary`). These are the
+**WCP-standard token names** and must be what the widget's CSS also uses.
+
+**Recommended approach:** write widget CSS using `--wcp-color-*` names directly, with
+fallback values in `:root` for standalone use. Example:
+
+```css
+:root {
+  --wcp-color-bg: #1e1e2e;
+  --wcp-color-surface: #2a2a3e;
+  --wcp-color-primary: #89b4fa;
+  /* etc. */
+}
+html, body { background: var(--wcp-color-bg); color: var(--wcp-color-text); }
+```
+
+When the dashboard broadcasts a theme, it overwrites these `:root` values and the widget
+re-renders with the host's colour scheme automatically — no mapping needed.
+
+**If the widget uses internal alias names** (e.g. `--bg`, `--accent`, `--surface2`) the
+`applyTheme` function must map WCP tokens to those aliases, otherwise theme changes arrive
+but nothing in the CSS responds:
+
+```javascript
+function applyTheme(t) {
+  // Map standard --wcp-color-* tokens to any internal alias vars the widget CSS uses.
+  // If your widget CSS uses --wcp-color-* directly, the MAP can be omitted.
+  const MAP = {
+    '--wcp-color-bg':            '--bg',
+    '--wcp-color-surface':       '--surface',
+    '--wcp-color-surface-raised':'--surface2',
+    '--wcp-color-border':        '--border',
+    '--wcp-color-text':          '--text',
+    '--wcp-color-text-muted':    '--muted',
+    '--wcp-color-primary':       '--accent',
+    '--wcp-color-success':       '--green',
+    '--wcp-color-danger':        '--red',
+    '--wcp-color-warning':       '--yellow',
+  };
+  Object.entries(t).forEach(([k, v]) => {
+    document.documentElement.style.setProperty(k, v);
+    const alias = MAP[k]; if (alias) document.documentElement.style.setProperty(alias, v);
+  });
+}
+```
+
+Copy this block verbatim into every `<script>` section:
 
 ```javascript
 // 1. WCP ready + theme request
+// Define applyTheme FIRST (function declaration — hoisted within module scope).
+function applyTheme(t) {
+  // (include MAP block above if widget CSS uses internal alias var names)
+  Object.entries(t).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
+}
 window.parent.postMessage({ type: 'wcp:ready' }, '*');
 window.parent.postMessage({ type: 'wcp:request-theme' }, '*');
 
 // 2. #wcp-theme= hash reading (WCP 2.x standard — base64 encoded)
+// The hash payload is { uuid, name, vars: { '--wcp-color-bg': '#...', ... } }
+// Extract .vars — do NOT iterate the top-level object directly.
 if (window.location.hash.startsWith('#wcp-theme=')) {
   try {
-    const _fvars = JSON.parse(atob(window.location.hash.slice(11)));
-    for (const [k, v] of Object.entries(_fvars)) document.documentElement.style.setProperty(k, v);
+    const _p = JSON.parse(atob(window.location.hash.slice(11)));
+    applyTheme(_p.vars || _p);   // _p.vars is the token object; fallback for bare payloads
   } catch {}
 }
 
 // 3. postMessage theme listener
-// The WCP host sends theme data in e.data.vars (current) or e.data.theme (legacy).
-// Always check both — e.data.vars takes priority.
+// The WCP host sends { type: 'wcp:theme', vars: { '--wcp-color-bg': '#...', ... } }
+// Always check e.data.vars first; fall back to e.data.theme for legacy hosts.
 window.addEventListener('message', e => {
   if ((e.data?.type === 'wcp:theme' || e.data?.type === 'wcp:context') && (e.data.vars || e.data.theme))
-    Object.entries(e.data.vars || e.data.theme).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
+    applyTheme(e.data.vars || e.data.theme);
 });
 ```
 
 **Critical — `#wcp-theme=` uses base64 (`atob`), NOT URL-encoding (`decodeURIComponent`).**
-The dashboard encodes the theme as `btoa(JSON.stringify(themeVars))`. Any template that
-uses `decodeURIComponent` or the old `wcp:theme=` (colon) hash format is non-compliant.
+The dashboard encodes the theme as `btoa(JSON.stringify(payload))` where `payload` is
+`{ uuid, name, vars: { '--wcp-color-*': value, ... } }`. Any template that:
+- uses `decodeURIComponent` instead of `atob` — non-compliant
+- uses the old `wcp:theme=` (colon) hash format — non-compliant
+- iterates `JSON.parse(atob(...))` directly without extracting `.vars` — sets `uuid` and
+  `name` as CSS properties and never sets any colour — broken (silent failure)
 
 All five elements must be present in every template:
 1. `wcp:ready` postMessage ✓ (in block above)
 2. `wcp:request-theme` postMessage ✓ (in block above)
-3. `#wcp-theme=` hash reading — `atob` base64 decode ✓ (in block above)
+3. `#wcp-theme=` hash reading — `atob` → extract `.vars` ✓ (in block above)
 4. `wcp:context` + `wcp:theme` message listener ✓ (in block above)
-5. Theme variable application — `setProperty` loop ✓ (in block above)
+5. `applyTheme()` that handles WCP token names ✓ (in block above)
 
-**⚠️ Widget templates run in a sandboxed iframe. This has two mandatory consequences:**
+**⚠️ Widget templates run in a sandboxed iframe. This has three mandatory consequences:**
 
 1. **Never use `alert()`, `confirm()`, or `prompt()`** — the WCP host sandbox does not
-   include `allow-modals`. These calls are silently swallowed with no error. Use an
-   in-page toast/notification element for all user feedback.
+   include `allow-modals`. **These calls return `false`/`undefined`, not `true`.** This means
+   `confirm()` used as a guard (`if (!confirm('Delete?')) return;`) will **always return**,
+   permanently blocking the action. Use an in-page toast/notification element for all user
+   feedback. Use a two-click confirmation pattern on the button for destructive actions.
 
-2. **Use `document.body.appendChild(a); a.click(); document.body.removeChild(a)`** when
+2. **`confirm()` returning `false` blocks actions permanently** — any pattern like
+   `if (dirty && !confirm('...')) return;` will lock the user out of that feature entirely.
+   Replace such guards with auto-save (save then proceed) or toast-based UX.
+
+3. **Use `document.body.appendChild(a); a.click(); document.body.removeChild(a)`** when
    triggering programmatic file downloads — a detached anchor element may not fire in
    all sandbox configurations.
 
