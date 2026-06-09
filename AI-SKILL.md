@@ -16,11 +16,11 @@ responding correctly.
 - ✅ Technology choice — language, framework, container runtime
 - ✅ Widget build — source code, Dockerfile, docker-compose.yml, WCP endpoints
 - ✅ Specification document — completed `specification.md`
-- ➡ Documentation, audit, deployment — hand off to wcp-ai-automation when complete
+- ➡ Documentation, audit, deployment — hand off to wcp-ai-release when complete
 
 **Prerequisite reading:** This skill references patterns and standards from:
 - [wcp-ai-build AI-SKILL.md Section 2](https://github.com/penrithbeacon/wcp-ai-build/blob/main/AI-SKILL.md) — Technology Negotiation Pattern
-- [WIDGET-BUILD-SPEC.md](https://github.com/penrithbeacon/wcp-ai-automation/blob/main/standards/WIDGET-BUILD-SPEC.md) — what every WCP widget must implement
+- [WIDGET-BUILD-SPEC.md](https://github.com/penrithbeacon/wcp-ai-release/blob/main/standards/WIDGET-BUILD-SPEC.md) — what every WCP widget must implement
 
 ---
 
@@ -227,7 +227,7 @@ Once all design decisions are complete, build the widget.
 
 ### Step 1 — Read the build standard
 
-Read [WIDGET-BUILD-SPEC.md](https://github.com/penrithbeacon/wcp-ai-automation/blob/main/standards/WIDGET-BUILD-SPEC.md)
+Read [WIDGET-BUILD-SPEC.md](https://github.com/penrithbeacon/wcp-ai-release/blob/main/standards/WIDGET-BUILD-SPEC.md)
 for the complete implementation specification. Key sections:
 - **Section A** — Dockerfile and docker-compose.yml structure
 - **Section B** — Server application structure (CORS, WCP headers, app runner)
@@ -252,11 +252,32 @@ src/
     widget.html                ← compact dashboard view (GET /widget/)
     index.html                 ← widget index page (GET /widget/index)
     {additional-components}.html
-README.md                      ← placeholder — filled by wcp-ai-automation
-DOCKER.md                      ← placeholder — filled by wcp-ai-automation
+  installers/                  ← companion agent installer files (only if agent present)
+    {agent-name}.pkg           ← macOS installer — copied into image at build time
+README.md                      ← placeholder — filled by wcp-ai-release
+DOCKER.md                      ← placeholder — filled by wcp-ai-release
 specification.md               ← generated in Step 4 below
 audit.md                       ← empty — filled before first release
 ```
+
+**Companion agent installer bundling:**
+If a companion agent was identified for this widget, the agent's compiled installer
+(`.pkg` on macOS, equivalent on other platforms) must be physically copied into the
+Docker image at build time so that `GET /widget/agent/installer` has a file to serve.
+
+Add to `Dockerfile`:
+```dockerfile
+COPY src/installers/ ./src/installers/
+```
+
+The installer file is placed in `src/installers/` in the source tree before building
+the image. During the release pipeline (`wcp-ai-release`), the agent's installer is
+built first, then copied here before the widget image is built. This ensures the
+installer served from the widget is always the version that shipped with this image.
+
+If the installer is not yet available at widget build time, the endpoint should return
+`503 Service Unavailable` with a body pointing to the agent's GitHub Releases page,
+rather than a `404` — this signals "not yet available" rather than "does not exist".
 
 ### Step 3 — Implement all mandatory WCP endpoints
 
@@ -273,6 +294,23 @@ response format of each:
 | `GET /widget/health` | JSON | `{ "status": "ok", "name": "...", "container": "..." }` |
 | `GET /widget/icon.svg` | SVG | Widget icon |
 | `GET /widget/api/guids` | JSON | Component UUIDs for orchestration binding |
+| `GET /widget/logs` | JSON | WCP logs protocol — self-describing log envelope |
+
+**WCP logs protocol** — the `/widget/logs` response must follow this structure:
+
+```json
+{
+  "schema": "wcp-logs/1.0",
+  "container": "<container-name>",
+  "entries": [
+    { "ts": "<ISO8601Z>", "level": "info|warn|error", "msg": "..." }
+  ]
+}
+```
+
+Support optional query parameters: `?limit=N`, `?level=info|warn|error`, `?since=<ISO8601Z>`.
+Entries are held in an in-memory ring buffer (suggested max 500 entries). The endpoint
+always returns 200 with an empty `entries` array if no logs have been recorded.
 
 ### Step 4 — Implement optional endpoints
 
@@ -315,8 +353,8 @@ All mandatory endpoints must return 200 (or 204 for OPTIONS) before proceeding.
 
 ## 5. Skill: Generate the Specification
 
-Use [templates/specification.md](https://github.com/penrithbeacon/wcp-ai-automation/blob/main/templates/specification.md)
-from wcp-ai-automation to produce a completed `specification.md` for the widget repo.
+Use [templates/specification.md](https://github.com/penrithbeacon/wcp-ai-release/blob/main/templates/specification.md)
+from wcp-ai-release to produce a completed `specification.md` for the widget repo.
 
 Populate it with the decisions made in Section 3 (Design) and the endpoints implemented
 in Section 4 (Build). The specification records the design intent alongside the technical
@@ -324,14 +362,35 @@ implementation — it is the authoritative reference for all future changes to t
 
 ---
 
-## 6. Handoff to Deployment
+## 6. Mandatory Handoff to Release Pipeline
 
-The widget is built, running, and verified. Now hand off to wcp-ai-automation:
+> ⛔ **The build is not complete until the release pipeline passes its audit gate.**
+> A widget that starts with `docker compose up` is *built*. A widget that has passed
+> the wcp-ai-release audit and is published on Docker Hub is *released*. These are
+> not the same. Do not consider this work done until the release pipeline completes.
 
-> _"Read https://github.com/penrithbeacon/wcp-ai-automation/blob/main/AI-SKILL.md
-> and use it to create documentation for this widget and prepare it for release."_
+### Before handing off — confirm all of the following:
 
-The automation skill will:
-- Generate `README.md` and `DOCKER.md` from the running container
-- Run the full pre-release audit against every WCP requirement
-- Walk through the Docker Hub deployment workflow
+- [ ] All mandatory endpoints return 200 / 204 (Step 6 verification curls pass)
+- [ ] `GET /widget/logs` returns a valid WCP logs envelope
+- [ ] If a companion agent is present: `GET /widget/api/agent/status` is implemented
+- [ ] If a companion agent is present: `src/installers/` contains the agent `.pkg`
+      (or the endpoint returns 503 with a GitHub Releases URL in the body)
+- [ ] `specification.md` has been generated (Section 5 above)
+
+### Hand off
+
+Tell the developer:
+
+> _"The widget build is complete and verified locally. We now need to run the
+> release pipeline — documentation, pre-release audit, and Docker Hub publication.
+> Read https://github.com/penrithbeacon/wcp-ai-release/blob/main/AI-SKILL.md
+> and follow it."_
+
+**Carry forward to wcp-ai-release:**
+- Widget name (`wcp-widget-<name>`)
+- Full GitHub repository path
+- Full Docker Hub image path (`<dockerhub-username>/wcp-widget-<name>`)
+- Widget port
+- Credentials file path
+- Whether a companion agent is present (name and port if so)
