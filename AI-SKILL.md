@@ -63,6 +63,29 @@ wcp-ai-build — specifically their full description of what they want to build.
 - Do not ask the developer to repeat themselves — acknowledge what you already know and
   confirm your interpretation, then ask only for the gaps
 
+### Docker capability inference
+
+Before asking design questions, apply these inference rules to the developer's description.
+Record the inferences and confirm them — do not ask the developer to re-state things you
+can already determine.
+
+| If the description mentions… | Infer… |
+|-------------------------------|--------|
+| Creating, saving, or persisting files | A Docker volume is required. Ask for the mount path in Phase E. |
+| A user-configurable root folder or working directory | The volume mount path is set at container start via `docker-compose.yml`. The settings UI configures which subdirectory within the mount is the active root. |
+| Browsing or picking ANY folder on the host file system at runtime | A companion agent is required. A running container cannot see beyond its mounted volume. The agent exposes a host filesystem browser endpoint. |
+| Reading host system data (processes, installed tools, OS config) | A companion agent is required. |
+| Running commands on the host machine | A companion agent is required. |
+| External HTTP APIs, computed data, or in-container state only | No agent required. |
+| A WYSIWYG or rich text editor | A JavaScript rich text editor library is required in the frontend. Apply the Technology Negotiation Pattern for this choice separately from the backend language choice. |
+| A code editor or syntax-highlighted editor | A JavaScript code editor library is required (e.g. CodeMirror, Monaco). Apply Technology Negotiation. |
+
+**If a companion agent is inferred as needed:**
+1. Announce it to the developer: _"Based on what you've described, this widget will need a companion agent running on the host machine. I'll be designing both in parallel."_
+2. Read [wcp-ai-build-agent AI-SKILL.md](https://github.com/penrithbeacon/wcp-ai-build-agent/blob/main/AI-SKILL.md) and run that pipeline alongside this one within the same conversation.
+3. At integration points (port assignment, data contract, `host.docker.internal` reference), ask questions that cover both widget and agent together.
+4. The widget should degrade gracefully when the agent is not present — detect availability at startup via a health check to `host.docker.internal:<agent-port>/health` and adjust the UI accordingly.
+
 ### Design phases
 
 Work through these phases in order. The developer may answer in abstract terms (features,
@@ -125,13 +148,76 @@ Ask (these are optional — include only if the developer wants them):
 
 ### Phase E — Infrastructure
 
-1. Apply the **Technology Negotiation Pattern** for language and framework (Section 2 above)
+1. Apply the **Technology Negotiation Pattern** for language and framework (Section 2 above).
+   If a WYSIWYG or code editor was identified in the Docker inference step, apply a
+   **separate** Technology Negotiation for the frontend JavaScript library.
+
 2. Port assignment:
-   - Ask the developer if they have a preferred port
+   - Ask the developer if they have a preferred port.
    - If not: suggest the next available port above those in the occupied port set
-     recorded in wcp-ai-build Step 1 (from Bonjour query or developer-provided list)
-3. Confirm the widget ID (kebab-case name, e.g. `my-widget`)
-4. Confirm the publisher namespace (Docker Hub username, e.g. `penrithbeacon`)
+     recorded in wcp-ai-build Step 1 (from Bonjour query or developer-provided list).
+
+3. **Widget naming and namespace conflict check:**
+   - Widget repository and image names follow the pattern: `wcp-widget-<name>`
+   - Confirm the name with the developer.
+   - Using the stored GitHub PAT, check whether `<github-username>/wcp-widget-<name>`
+     already exists on GitHub.
+   - Using the stored Docker Hub token, check whether `<dockerhub-username>/wcp-widget-<name>`
+     already exists on Docker Hub.
+   - If either exists: flag the conflict and ask the developer to choose a different name.
+   - Record the confirmed widget name and full repository/image paths.
+
+4. **Standard components — always offer these three:**
+
+   Every widget build must include the following components unless the developer explicitly
+   declines. Offer all three and build whichever are accepted.
+
+   **a) The primary component** — the main widget card the developer has described.
+   Default size: whatever was agreed in Phase B.
+
+   **b) Settings component** (always offer — default size 12×12, separate WCP card):
+
+   Minimum contents (always include):
+   - Port number — displayed prominently so the developer always knows the widget's port
+   - Theme selection — the three built-in Penrith Beacon themes, plus the ability to
+     upload a `.wcpt` theme file to add any custom theme
+   - Root folder path — a text input (or, if a companion agent is present, a folder
+     picker) for configuring the widget's working directory
+
+   If a companion agent was identified for this widget, also include:
+   - Agent status indicator — shows whether the companion agent is detected at
+     `host.docker.internal:<agent-port>/health`
+   - Agent installer download — a button/link that downloads the companion agent
+     installer directly from the widget container (e.g. `GET /widget/agent/installer`).
+     The installer file is bundled inside the Docker image. Include platform detection
+     where possible (e.g. offer macOS `.pkg` if the browser user-agent indicates macOS).
+     Display installation instructions alongside the download link.
+
+   **c) About component** (always offer — default size 12×12, separate WCP card):
+
+   Mandatory contents:
+   - Widget name
+   - Description (1–3 sentences)
+   - Version number
+   - OCI image path — the full Docker Hub image reference (e.g.
+     `yourname/wcp-widget-example:1.0.0`). Displayed as copyable text. Not a clickable
+     hyperlink at this time.
+
+   Optional contents — ask the developer for each; include if provided, omit if not:
+   - GitHub repository URL
+   - Author name
+   - Author email address
+   - Author website URL
+
+5. Confirm the publisher namespace (Docker Hub username, e.g. `penrithbeacon`).
+
+6. **Carry forward to all subsequent pipeline stages:**
+   - GitHub username + PAT
+   - Docker Hub username + access token
+   - Credentials file path
+   - Widget name (`wcp-widget-<name>`)
+   - Full GitHub repository path
+   - Full Docker Hub image path
 
 ---
 
