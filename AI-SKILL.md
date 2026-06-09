@@ -382,9 +382,11 @@ if (window.location.hash.startsWith('#wcp-theme=')) {
 }
 
 // 3. postMessage theme listener
+// The WCP host sends theme data in e.data.vars (current) or e.data.theme (legacy).
+// Always check both — e.data.vars takes priority.
 window.addEventListener('message', e => {
-  if ((e.data?.type === 'wcp:theme' || e.data?.type === 'wcp:context') && e.data.theme)
-    Object.entries(e.data.theme).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
+  if ((e.data?.type === 'wcp:theme' || e.data?.type === 'wcp:context') && (e.data.vars || e.data.theme))
+    Object.entries(e.data.vars || e.data.theme).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
 });
 ```
 
@@ -398,6 +400,16 @@ All five elements must be present in every template:
 3. `#wcp-theme=` hash reading — `atob` base64 decode ✓ (in block above)
 4. `wcp:context` + `wcp:theme` message listener ✓ (in block above)
 5. Theme variable application — `setProperty` loop ✓ (in block above)
+
+**⚠️ Widget templates run in a sandboxed iframe. This has two mandatory consequences:**
+
+1. **Never use `alert()`, `confirm()`, or `prompt()`** — the WCP host sandbox does not
+   include `allow-modals`. These calls are silently swallowed with no error. Use an
+   in-page toast/notification element for all user feedback.
+
+2. **Use `document.body.appendChild(a); a.click(); document.body.removeChild(a)`** when
+   triggering programmatic file downloads — a detached anchor element may not fire in
+   all sandbox configurations.
 
 ### Step 6 — Build and verify
 
