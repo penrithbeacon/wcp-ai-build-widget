@@ -332,6 +332,24 @@ Every HTML template must include all five WCP theme reception elements
 
 ### Step 6 — Build and verify
 
+**Important — docker-compose.yml must include `build: .`**
+
+The generated `docker-compose.yml` must include a `build:` directive so that
+`docker compose build` works for local development. Without it, the `image:` key
+references the Docker Hub image and `docker compose build` reports "No services
+to build". The correct pattern is both together:
+
+```yaml
+services:
+  wcp-widget-{widget-id}:
+    build: .
+    image: {dockerhub-username}/wcp-widget-{widget-id}:latest
+```
+
+With `build: .` present, `docker build` and `docker compose build` both work
+locally, while `docker compose up` (without a prior build) will pull from Docker Hub
+if no local image exists.
+
 ```bash
 # Build and start the container
 docker build -t wcp-widget-{widget-id}:local .
