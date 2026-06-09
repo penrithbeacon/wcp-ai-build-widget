@@ -378,13 +378,45 @@ implementation — it is the authoritative reference for all future changes to t
       (or the endpoint returns 503 with a GitHub Releases URL in the body)
 - [ ] `specification.md` has been generated (Section 5 above)
 
+### Alpha kiosk stage — human QA (required before first release)
+
+Before running the release pipeline, the widget must be tested in a real dashboard
+environment. This is a **human-driven stage** — the AI's role is advisory (debug,
+implement feature requests, answer questions). There is no scripted endpoint; the
+developer decides when the widget is ready to graduate to beta.
+
+In your WCP host studio:
+
+1. Create a new orchestration
+2. Add the widget card(s) to the orchestration layout
+3. Mark the orchestration as an application
+4. Launch it from the **alpha kiosk**
+5. Verify the widget works as expected — layout, theme reception, all interactions,
+   Settings component, About component, agent status (if applicable)
+6. Iterate: fix bugs, add features, adjust layout — until satisfied with the result
+
+> **What is an alpha kiosk?**
+> WCP hosts support three kiosk stages that mirror a standard software release cycle:
+> - **Alpha kiosk** — development and internal QA; local only; no public release
+> - **Beta kiosk** — pre-release testing; first public publication; beta tag on Docker Hub
+> - **Release kiosk** — production; stable tag on Docker Hub; ready to ship
+>
+> The alpha kiosk is the appropriate environment for initial testing. The widget is
+> not published publicly at this stage. When the developer is satisfied, they graduate
+> it to beta — which is where the release pipeline first runs.
+
+When the developer is ready to graduate to beta, optionally run a **dry-run release**
+first (validates the full release process without pushing anything publicly), then
+proceed to the full beta release.
+
 ### Hand off
 
 Tell the developer:
 
-> _"The widget build is complete and verified locally. We now need to run the
-> release pipeline — documentation, pre-release audit, and Docker Hub publication.
-> Read https://github.com/penrithbeacon/wcp-ai-release/blob/main/AI-SKILL.md
+> _"The widget is verified locally and ready for alpha kiosk testing. Add it to an
+> orchestration in your WCP host studio, launch it from the alpha kiosk, and complete
+> your QA. When you're satisfied and ready to make your first public (beta) release,
+> read https://github.com/penrithbeacon/wcp-ai-release/blob/main/AI-SKILL.md
 > and follow it."_
 
 **Carry forward to wcp-ai-release:**
@@ -394,3 +426,4 @@ Tell the developer:
 - Widget port
 - Credentials file path
 - Whether a companion agent is present (name and port if so)
+- Release stage: **beta** (first release from alpha kiosk) or **release** (graduating from beta kiosk)
