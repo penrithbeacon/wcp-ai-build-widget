@@ -316,6 +316,27 @@ response format of each:
 | `GET /widget/api/guids` | JSON | Component UUIDs for orchestration binding |
 | `GET /widget/logs` | JSON | WCP logs protocol — self-describing log envelope |
 
+**`GET /widget/wcp` — component `path` must be an absolute URL.**
+
+Each component entry in the manifest must have its `path` as a fully-qualified absolute
+URL — not a relative path. The WCP host reads `path` directly and must be able to load it
+in an iframe without knowing the widget's base URL separately.
+
+```python
+# Correct — absolute URL:
+"path": f"http://localhost:{PORT}/widget/"
+
+# Wrong — relative path (will break iframe loading in the host):
+"path": "/widget/"
+```
+
+The `defaultSize` field uses `cols` and `rows` (not `w` and `h`):
+
+```python
+"defaultSize": { "cols": 12, "rows": 12 }   # ✅ WCP 2.x
+"defaultSize": { "w": 12, "h": 12 }         # ❌ WCP 1.x — do not use
+```
+
 **WCP logs protocol** — the `/widget/logs` response must follow this structure:
 
 ```json
