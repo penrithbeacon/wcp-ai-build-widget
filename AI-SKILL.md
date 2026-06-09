@@ -113,8 +113,8 @@ Ask (these are optional — include only if the developer wants them):
 1. Apply the **Technology Negotiation Pattern** for language and framework (Section 2 above)
 2. Port assignment:
    - Ask the developer if they have a preferred port
-   - If not: suggest the next available port above the WCP standard range
-     (existing ports: 3738–3745, 3747; suggest 3748 or higher)
+   - If not: suggest the next available port above those in the occupied port set
+     recorded in wcp-ai-build Step 1 (from Bonjour query or developer-provided list)
 3. Confirm the widget ID (kebab-case name, e.g. `my-widget`)
 4. Confirm the publisher namespace (Docker Hub username, e.g. `penrithbeacon`)
 
