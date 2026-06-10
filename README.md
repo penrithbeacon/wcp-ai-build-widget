@@ -4,7 +4,7 @@
 
 This repository contains the AI skill for designing and building a WCP widget from scratch.
 It covers the **design and build phase** only. When your widget is built and running, hand
-off to [WCP AI Automation](https://github.com/penrithbeacon/wcp-ai-automation) for
+off to [WCP AI Release](https://github.com/penrithbeacon/wcp-ai-release) for
 documentation, auditing, and deployment to Docker Hub.
 
 ---
@@ -30,16 +30,16 @@ will offer standard options and proceed with the most appropriate conservative c
 |-------|-------------|---------|
 | Widget design — purpose, components, data, features | ✅ | |
 | Technology choice — language, framework, container | ✅ | |
-| Widget build — code, container, all WCP endpoints | ✅ | [WIDGET-BUILD-SPEC.md](https://github.com/penrithbeacon/wcp-ai-automation/blob/main/standards/WIDGET-BUILD-SPEC.md) |
-| Specification document | ✅ | [templates/specification.md](https://github.com/penrithbeacon/wcp-ai-automation/blob/main/templates/specification.md) |
-| Documentation, auditing, deployment | ➡ hand off | [wcp-ai-automation](https://github.com/penrithbeacon/wcp-ai-automation/blob/main/AI-SKILL.md) |
+| Widget build — code, container, all WCP endpoints | ✅ | [WIDGET-BUILD-SPEC.md](https://github.com/penrithbeacon/wcp-ai-release-widget/blob/main/standards/WIDGET-BUILD-SPEC.md) |
+| Specification document | ✅ | [templates/specification.md](https://github.com/penrithbeacon/wcp-ai-release-widget/blob/main/templates/specification.md) |
+| Documentation, auditing, deployment | ➡ hand off | [wcp-ai-release](https://github.com/penrithbeacon/wcp-ai-release/blob/main/AI-SKILL.md) |
 
 ---
 
 ## Links
 
 - [WCP AI Build](https://github.com/penrithbeacon/wcp-ai-build) — start here if you're not sure what to build
-- [WCP AI Automation](https://github.com/penrithbeacon/wcp-ai-automation) — documentation, auditing, deployment
+- [WCP AI Release](https://github.com/penrithbeacon/wcp-ai-release) — documentation, auditing, deployment
 - [Widget Context Protocol](https://widgetcontextprotocol.com)
 - [WCP Developer Guide](https://dev.widgetcontextprotocol.com)
 - [Penrith Beacon](https://penrithbeacon.com)
