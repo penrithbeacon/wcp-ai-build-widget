@@ -213,15 +213,19 @@ Ask (these are optional — include only if the developer wants them):
      where possible (e.g. offer macOS `.pkg` if the browser user-agent indicates macOS).
      Display installation instructions alongside the download link.
 
-   **c) About component** (always offer — default size 12×12, separate WCP card):
+   **c) About component** (default size 12×12, separate WCP card):
+
+   **Mandatory if the widget uses any third-party JS libraries (almost always true).**
+   Always offer this component; it is the correct place to document open-source
+   attributions. See Step 5b for the full third-party licensing audit requirement.
 
    Mandatory contents:
    - Widget name
    - Description (1–3 sentences)
    - Version number
-   - OCI image path — the full Docker Hub image reference (e.g.
-     `yourname/wcp-widget-example:1.0.0`). Displayed as copyable text. Not a clickable
-     hyperlink at this time.
+   - OCI image path — the full, correctly-formed OCI reference. See **OCI path
+     construction** below. Displayed as copyable text. Not a clickable hyperlink.
+   - **Open Source Components card** (mandatory when any third-party deps exist — see Step 5b)
 
    Optional contents — ask the developer for each; include if provided, omit if not:
    - GitHub repository URL
@@ -230,6 +234,41 @@ Ask (these are optional — include only if the developer wants them):
    - Author website URL
 
 5. Confirm the publisher namespace (Docker Hub username, e.g. `penrithbeacon`).
+
+### OCI path construction
+
+An OCI path is the fully-qualified, protocol-prefixed reference to a container image
+as defined by the OCI Distribution Specification. It is NOT a Docker Hub short path
+(`namespace/image:tag`) — it includes the protocol scheme and the registry hostname.
+
+**Format:**
+```
+oci://<registry>/<namespace>/<image-name>:<tag>
+```
+
+**Components:**
+
+| Component | What it is | Example |
+|-----------|-----------|---------|
+| `oci://` | OCI protocol scheme — always this prefix | `oci://` |
+| `<registry>` | Registry hostname. For Docker Hub: `docker.io` | `docker.io` |
+| `<namespace>` | Docker Hub account or organisation name | `penrithbeacon` |
+| `<image-name>` | Repository name within the namespace | `wcp-widget-markdown-editor` |
+| `:<tag>` | Version tag (semver for releases; `latest` for tip) | `:1.0.0` |
+
+**Worked example for this widget ecosystem:**
+```
+oci://docker.io/penrithbeacon/wcp-widget-markdown-editor:1.0.0
+```
+
+**Rules:**
+- Always include `oci://` — without it the string is a Docker short reference, not an OCI path
+- Always use `docker.io` for Docker Hub — `hub.docker.com` is the web UI, not the registry
+- The tag for a release is the semantic version (`1.0.0`), not `latest`; `latest` is acceptable
+  as an additional tag but the OCI path displayed to users in the About page should be the versioned tag
+- The `about.html` template must display this as:
+  `oci://docker.io/<namespace>/<image-name>:{{ version }}`
+  where `{{ version }}` is the Flask template variable
 
 6. **Carry forward to all subsequent pipeline stages:**
    - GitHub username + PAT
@@ -460,15 +499,18 @@ function applyTheme(t) {
 window.parent.postMessage({ type: 'wcp:ready' }, '*');
 window.parent.postMessage({ type: 'wcp:request-theme' }, '*');
 
-// 2. #wcp-theme= hash reading (WCP 2.x standard — base64 encoded)
-// The hash payload is { uuid, name, vars: { '--wcp-color-bg': '#...', ... } }
+// 2. URL-based theme — BOTH forms are mandatory (WCP 2.x)
+// Form A: query string  ?com.doc.widgetcontextprotocol=<base64>
+// Form B: hash fragment  #wcp-theme=<base64>
+// The payload is base64( JSON.stringify({ uuid, name, vars: { '--wcp-color-bg': '#...', ... } }) )
 // Extract .vars — do NOT iterate the top-level object directly.
-if (window.location.hash.startsWith('#wcp-theme=')) {
-  try {
-    const _p = JSON.parse(atob(window.location.hash.slice(11)));
-    applyTheme(_p.vars || _p);   // _p.vars is the token object; fallback for bare payloads
-  } catch {}
-}
+(function(){
+  const QK  = 'com.doc.widgetcontextprotocol';
+  const raw = new URLSearchParams(location.search).get(QK)
+           || (location.hash.startsWith('#wcp-theme=') ? location.hash.slice(11) : null);
+  if (!raw) return;
+  try { const p = JSON.parse(atob(raw)); applyTheme(p.vars || p); } catch {}
+})();
 
 // 3. postMessage theme listener
 // The WCP host sends { type: 'wcp:theme', vars: { '--wcp-color-bg': '#...', ... } }
@@ -479,9 +521,10 @@ window.addEventListener('message', e => {
 });
 ```
 
-**Critical — `#wcp-theme=` uses base64 (`atob`), NOT URL-encoding (`decodeURIComponent`).**
+**Critical — URL theme uses base64 (`atob`), NOT URL-encoding (`decodeURIComponent`).**
 The dashboard encodes the theme as `btoa(JSON.stringify(payload))` where `payload` is
 `{ uuid, name, vars: { '--wcp-color-*': value, ... } }`. Any template that:
+- handles only `#wcp-theme=` hash and not `?com.doc.widgetcontextprotocol=` query string — non-compliant
 - uses `decodeURIComponent` instead of `atob` — non-compliant
 - uses the old `wcp:theme=` (colon) hash format — non-compliant
 - iterates `JSON.parse(atob(...))` directly without extracting `.vars` — sets `uuid` and
@@ -509,6 +552,61 @@ All five elements must be present in every template:
 3. **Use `document.body.appendChild(a); a.click(); document.body.removeChild(a)`** when
    triggering programmatic file downloads — a detached anchor element may not fire in
    all sandbox configurations.
+
+### Step 5b — Audit third-party dependencies (MANDATORY)
+
+Before building the container, list every third-party JavaScript library or framework
+referenced in any HTML template (CDN imports, ESM imports, `<script src>`, `import …
+from`). For each, identify its licence.
+
+**Why this is mandatory:**
+- Permissive licences (MIT, Apache 2.0, BSD) are safe for use in WCP widgets but
+  require that the copyright notice is preserved in source distributions.
+- Copyleft licences (GPL, LGPL, AGPL) can impose distribution obligations on the
+  widget code — these must be escalated to the developer before proceeding.
+- Commercial or proprietary licences require explicit permission — stop immediately
+  and clarify with the developer.
+- Some licences (Creative Commons BY) explicitly require attribution in the product UI.
+
+**Procedure:**
+
+1. List every third-party dependency used in any template. Include:
+   - JS frameworks and component libraries (editors, chart libraries, etc.)
+   - Utility libraries (parsers, converters, ZIP handlers, etc.)
+   - Any CSS frameworks loaded externally
+   - Polyfills loaded from CDN
+
+2. For each, state the licence type. The licence is usually visible on the library's
+   npm page, GitHub repo, or documentation.
+
+3. **Flag and stop** if any dependency is LGPL, GPL, AGPL, or has a non-standard licence.
+   Report to the developer before continuing.
+
+4. **About component is MANDATORY if any third-party dependencies exist** — which in
+   practice means almost always. Record all dependencies in an "Open Source Components"
+   card in the About page.
+
+**About page — "Open Source Components" card format:**
+
+```html
+<div class="section">
+  <h2>Open Source Components</h2>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">
+    This widget uses the following open-source libraries. {summary licence statement}.
+  </p>
+  <div class="row"><span class="lbl">{Library} {Version}</span>
+    <span class="val" style="color:var(--muted)">{Role} · <a href="{url}" …>{url-short}</a></span></div>
+  <!-- one row per dependency -->
+</div>
+```
+
+Place this card after the Technical card. Group by licence type if mixing licences.
+
+**Reference implementation:** `wcp-widget-markdown-editor/src/templates/about.html`
+— "Open Source Components" section listing TipTap, ProseMirror, marked, Turndown, JSZip
+(all MIT Licensed).
+
+---
 
 ### Step 6 — Build and verify
 
