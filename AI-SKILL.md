@@ -233,6 +233,87 @@ Ask (these are optional — include only if the developer wants them):
    - Author email address
    - Author website URL
 
+   **Complete About page template** — copy, fill in `{placeholders}`, delete optional rows if not provided:
+
+   ```html
+   <!DOCTYPE html>
+   <html lang="en">
+   <head>
+   <meta charset="UTF-8">
+   <title>{Widget Name} — About</title>
+   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"{Widget Name}","version":"{{ version }}"}</script>
+   <style>
+   :root{--wcp-color-bg:#0d1117;--wcp-color-surface:#161b22;--wcp-color-surface-raised:#1c2128;--wcp-color-border:#30363d;--wcp-color-text:#e6edf3;--wcp-color-text-muted:#8b949e;--wcp-color-primary:#f0883e;--wcp-color-success:#3fb950;--wcp-color-danger:#f85149;--wcp-radius-md:8px}
+   *{box-sizing:border-box;margin:0;padding:0}
+   *::-webkit-scrollbar{width:8px}*::-webkit-scrollbar-track{background:var(--wcp-color-surface)}*::-webkit-scrollbar-thumb{background:var(--wcp-color-border);border-radius:4px}
+   html,body{height:100%;background:var(--wcp-color-bg);color:var(--wcp-color-text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px}
+   .wrap{height:100%;overflow-y:auto;padding:12px}
+   .section{background:var(--wcp-color-surface);border:1px solid var(--wcp-color-border);border-radius:var(--wcp-radius-md);padding:14px 16px;margin-bottom:12px}
+   .section h2{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--wcp-color-text-muted);margin-bottom:12px}
+   .row{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--wcp-color-border);gap:12px}
+   .row:last-child{border-bottom:none}
+   .lbl{font-size:12px;color:var(--wcp-color-text-muted);flex-shrink:0}
+   .val{font-size:12px;text-align:right;word-break:break-all}
+   .oci{font-family:monospace;font-size:11px;background:var(--wcp-color-surface-raised);border:1px solid var(--wcp-color-border);border-radius:4px;padding:6px 10px;margin-top:6px;user-select:all;line-height:1.5;color:var(--wcp-color-text)}
+   </style>
+   </head>
+   <body>
+   <div class="wrap">
+
+     <div class="section">
+       <h2>Widget</h2>
+       <div class="row"><span class="lbl">Name</span><span class="val">{Widget Name}</span></div>
+       <div class="row"><span class="lbl">Description</span><span class="val">{1–3 sentence description}</span></div>
+       <div class="row"><span class="lbl">Version</span><span class="val">{{ version }}</span></div>
+       <div class="row"><span class="lbl">WCP</span><span class="val">{{ wcp_version }}</span></div>
+     </div>
+
+     <div class="section">
+       <h2>Technical</h2>
+       <div class="row"><span class="lbl">Port</span><span class="val">{{ port }}</span></div>
+       <div class="row"><span class="lbl">Container</span><span class="val">{container-name}</span></div>
+       <div class="row"><span class="lbl">OCI Image</span><span class="val" style="width:100%">
+         <div class="oci">{{ oci_path }}</div>
+       </span></div>
+       <!-- Optional rows — include each only if the developer provides the value -->
+       <div class="row"><span class="lbl">GitHub</span>
+         <span class="val"><a href="https://github.com/{owner}/{repo}" style="color:var(--wcp-color-primary);text-decoration:none">github.com/{owner}/{repo}</a></span>
+       </div>
+       <div class="row"><span class="lbl">Author</span><span class="val">{Author Full Name}</span></div>
+       <div class="row"><span class="lbl">Author email</span><span class="val"><a href="mailto:{email}" style="color:var(--wcp-color-primary);text-decoration:none">{email}</a></span></div>
+       <div class="row"><span class="lbl">Author URL</span><span class="val"><a href="{url}" style="color:var(--wcp-color-primary);text-decoration:none">{url-short}</a></span></div>
+     </div>
+
+     <!-- Open Source Components — mandatory when any third-party JS/CSS deps exist -->
+     <div class="section">
+       <h2>Open Source Components</h2>
+       <p style="font-size:12px;color:var(--wcp-color-text-muted);margin-bottom:10px;line-height:1.5">
+         This widget uses the following open-source libraries. All are MIT Licensed.
+       </p>
+       <div class="row"><span class="lbl">{Library} {Version}</span>
+         <span class="val" style="color:var(--wcp-color-text-muted)">{Role} · <a href="{url}" style="color:var(--wcp-color-primary);text-decoration:none">{url-short}</a></span>
+       </div>
+       <!-- one .row per dependency -->
+     </div>
+
+   </div>
+   <script>
+   function applyTheme(t){Object.entries(t).forEach(([k,v])=>document.documentElement.style.setProperty(k,v));}
+   window.parent.postMessage({type:'wcp:ready'},'*');
+   window.parent.postMessage({type:'wcp:request-theme'},'*');
+   (function(){const QK='com.doc.widgetcontextprotocol';const raw=new URLSearchParams(location.search).get(QK)||(location.hash.startsWith('#wcp-theme=')?location.hash.slice(11):null);if(!raw)return;try{const p=JSON.parse(atob(raw));applyTheme(p.vars||p);}catch{}})();
+   window.addEventListener('message',e=>{if((e.data?.type==='wcp:theme'||e.data?.type==='wcp:context')&&(e.data.vars||e.data.theme))applyTheme(e.data.vars||e.data.theme);});
+   </script>
+   </body>
+   </html>
+   ```
+
+   **Rules:**
+   - The WCP version row (`{{ wcp_version }}`) must match the manifest's `wcpVersion` field.
+   - The OCI image (`{{ oci_path }}`) is injected by the server from the manifest — display it in a monospace copyable `<div class="oci">` block, never as a hyperlink.
+   - Author email must be a `mailto:` link; Author URL must be a full `https://` hyperlink.
+   - Delete optional rows (`GitHub`, `Author`, `Author email`, `Author URL`) only if the developer explicitly has no value for them. All four should be offered to the developer — they are part of the standard widget metadata, not truly optional from a QA perspective.
+
 5. Confirm the publisher namespace (Docker Hub username, e.g. `penrithbeacon`).
 
 ### OCI path construction
@@ -620,20 +701,24 @@ from`). For each, identify its licence.
 ```html
 <div class="section">
   <h2>Open Source Components</h2>
-  <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">
+  <p style="font-size:12px;color:var(--wcp-color-text-muted);margin-bottom:10px;line-height:1.5">
     This widget uses the following open-source libraries. {summary licence statement}.
   </p>
   <div class="row"><span class="lbl">{Library} {Version}</span>
-    <span class="val" style="color:var(--muted)">{Role} · <a href="{url}" …>{url-short}</a></span></div>
+    <span class="val" style="color:var(--wcp-color-text-muted)">{Role} · <a href="{url}" style="color:var(--wcp-color-primary);text-decoration:none">{url-short}</a></span>
+  </div>
   <!-- one row per dependency -->
 </div>
 ```
 
 Place this card after the Technical card. Group by licence type if mixing licences.
 
-**Reference implementation:** `wcp-widget-markdown-editor/src/templates/about.html`
-— "Open Source Components" section listing TipTap, ProseMirror, marked, Turndown, JSZip
-(all MIT Licensed).
+> **Note:** Use `var(--wcp-color-text-muted)` — not `var(--muted)`. The old `--muted`
+> alias is not injected by the WCP theme engine. Only full `--wcp-color-*` tokens are
+> guaranteed to be present.
+
+**Reference implementation:** `wcp-widget-bonjour/src/templates/about.html`
+— "Open Source Components" section listing JSZip, Flask, and Docker SDK (all MIT Licensed).
 
 ---
 
