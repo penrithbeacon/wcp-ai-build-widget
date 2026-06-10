@@ -387,6 +387,35 @@ response format of each:
 | `GET /widget/icon.svg` | SVG | Widget icon |
 | `GET /widget/api/guids` | JSON | Component UUIDs for orchestration binding |
 | `GET /widget/logs` | JSON | WCP logs protocol — self-describing log envelope |
+| `POST /widget/bonjour` | JSON | **WCP 2.2.0** — Bonjour port-change notification (see below) |
+
+**`POST /widget/bonjour` — Bonjour agent port-change notification (WCP 2.2.0 mandatory)**
+
+The Bonjour agent calls this endpoint on all registered containers when its own port changes.
+Do **not** implement this manually — use the `wcp_bonjour.py` boilerplate module:
+
+```python
+# In app.py, after creating the Flask app:
+import wcp_bonjour
+wcp_bonjour.flask_route(app)   # registers POST /widget/bonjour automatically
+```
+
+And at startup (in a daemon thread so it does not block Flask):
+```python
+import threading
+threading.Thread(
+    target=wcp_bonjour.init,
+    kwargs=dict(
+        name="wcp-widget-mywidget",
+        port=PORT,
+        companion_widget="wcp-widget-mywidget",
+        version="1.0.0",
+    ),
+    daemon=True,
+).start()
+```
+
+**Copy `boilerplate/wcp_bonjour.py` from this repo into the widget's `src/` directory alongside `app.py`.** It is stdlib-only (no pip dependency). The module handles: port file discovery, in-memory caching, registration with the Bonjour agent (with retry), and the `/widget/bonjour` notification endpoint.
 
 **`GET /widget/wcp` — component `path` must be an absolute URL.**
 
