@@ -197,23 +197,67 @@ Ask (these are optional — include only if the developer wants them):
 
    **b) Settings component** (always offer — default size 12×12, separate WCP card):
 
+   **Start from `boilerplate/settings.html`** in this repo — it is the canonical
+   template and includes all mandatory patterns pre-wired (theme sync, wcp:request-theme,
+   wcp:theme-apply, .wcpt import, radio-button active-theme sync). Do NOT write
+   settings.html from scratch.
+
    Minimum contents (always include):
    - Port number — displayed prominently so the developer always knows the widget's port
    - Theme selection — the three built-in Penrith Beacon themes, plus the ability to
      upload a `.wcpt` theme file to add any custom theme
-   - Root folder path — a text input (or, if a companion agent is present, a folder
-     picker) for configuring the widget's working directory
+
+   **Critical — theme radio-button sync:** The active theme radio button must reflect
+   the dashboard's actual active theme, not just the widget's locally stored preference.
+   The host broadcasts `wcp:theme` with a `themeId` field (WCP 2.2.0+). The settings
+   page must handle this:
+   ```javascript
+   window.addEventListener('message', e => {
+     if ((e.data?.type === 'wcp:theme' || e.data?.type === 'wcp:context') && (e.data.vars || e.data.theme)) {
+       applyTheme(e.data.vars || e.data.theme);
+       const hostId = e.data.themeId;
+       if (hostId && hostId !== _activeThemeId) {
+         _activeThemeId = hostId;
+         renderThemeList();  // re-renders radio buttons with correct selection
+       }
+     }
+   });
+   ```
+   Without this, the radio button always shows the widget's stored default (dark)
+   regardless of which theme the dashboard is actually showing.
+
+   **Agent installer download (if companion agent present):** Use `wcp:download-file`
+   postMessage — do NOT use `<a href="..." download>`. The `download` attribute is
+   blocked in Electron sandboxed iframes. Pattern:
+   ```javascript
+   async function downloadInstaller(btn) {
+     btn.disabled = true;
+     const r = await fetch('/widget/agent/installer', {method:'HEAD'});
+     if (r.ok) {
+       window.parent.postMessage({
+         type: 'wcp:download-file',
+         data: `${location.protocol}//${location.host}/widget/agent/installer`,
+         filename: 'WCP-{WidgetName}-Agent.pkg'
+       }, '*');
+       setTimeout(() => { btn.textContent = 'Download Agent Installer'; btn.disabled = false; }, 2000);
+     } else {
+       // Installer not yet bundled — open releases page
+       window.parent.postMessage({type:'wcp:open-window', url:'https://github.com/{owner}/{repo-agent}/releases'}, '*');
+       btn.disabled = false;
+     }
+   }
+   ```
 
    If a companion agent was identified for this widget, also include:
    - Agent status indicator — shows whether the companion agent is detected at
      `host.docker.internal:<agent-port>/health`
-   - Agent installer download — a button/link that downloads the companion agent
-     installer directly from the widget container (e.g. `GET /widget/agent/installer`).
-     The installer file is bundled inside the Docker image. Include platform detection
-     where possible (e.g. offer macOS `.pkg` if the browser user-agent indicates macOS).
-     Display installation instructions alongside the download link.
+   - Agent installer download (see pattern above)
 
    **c) About component** (default size 12×12, separate WCP card):
+
+   **Start from `boilerplate/about.html`** in this repo — it is the canonical template.
+   Fill in the `{placeholders}`, delete optional rows not provided, add one `.row`
+   per third-party dependency.
 
    **Mandatory if the widget uses any third-party JS libraries (almost always true).**
    Always offer this component; it is the correct place to document open-source
