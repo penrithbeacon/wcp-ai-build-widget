@@ -856,6 +856,35 @@ implementation — it is the authoritative reference for all future changes to t
 - [ ] If a companion agent is present: `src/installers/` contains the agent `.pkg`
       (or the endpoint returns 503 with a GitHub Releases URL in the body)
 - [ ] `specification.md` has been generated (Section 5 above)
+- [ ] Default orchestration decision made — either `GET /widget/default.wcpa` is
+      implemented (file bundled, endpoint added, manifest field present) or the developer
+      has explicitly opted out (no button will appear in Bonjour Search for this widget)
+
+### Default orchestration checkpoint
+
+Before alpha kiosk testing, ask:
+
+> _"Does this widget include a default orchestration? A default orchestration is a `.wcpa`
+> file bundled inside the image at `GET /widget/default.wcpa`. When present, users who pull
+> this widget from the Bonjour catalogue can download a ready-made orchestration for it with
+> one click. If you have a `.wcpa` file to bundle, provide it now — or type 'skip'."_
+
+- **If provided:** save as `src/static/default.wcpa`; add the endpoint to `app.py`:
+  ```python
+  @app.route("/widget/default.wcpa")
+  def default_wcpa():
+      path = pathlib.Path("/app/static/default.wcpa")
+      if not path.exists():
+          return "", 404
+      return send_file(path, as_attachment=True,
+                       download_name="default.wcpa",
+                       mimetype="application/octet-stream")
+  ```
+  Verify the Dockerfile copies `src/static/` → `/app/static/`.
+  Add `"defaultOrchestration": "/widget/default.wcpa"` to the WCP manifest dict.
+
+- **If skipped:** proceed without it. The Bonjour download button will not appear for
+  this widget. This decision can be revisited at any time using the Add Feature flow.
 
 ### Alpha kiosk stage — human QA (required before first release)
 
